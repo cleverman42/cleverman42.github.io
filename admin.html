@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>直播授课 · 大后台管理</title>
+<style>
+  :root{--bg:#0f172a;--panel:#fff;--ink:#1f2937;--muted:#6b7280;--brand:#2563eb;--brand-d:#1d4ed8;
+    --green:#10b981;--red:#ef4444;--amber:#f59e0b;--line:#e5e7eb;--shadow:0 8px 30px rgba(0,0,0,.18)}
+  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink)}
+  .topbar{display:flex;align-items:center;gap:12px;padding:14px 22px;background:#111c34;color:#fff}
+  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--green));display:flex;align-items:center;justify-content:center;font-weight:700}
+  .topbar h1{font-size:17px;margin:0} .topbar .spacer{flex:1}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border:none;border-radius:10px;background:var(--brand);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+  .btn:hover{background:var(--brand-d)} .btn.ghost{background:#fff;color:var(--brand-d);border:1px solid var(--brand)}
+  .btn.red{background:var(--red)} .btn.sm{width:auto;padding:7px 12px;font-size:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px} @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px;font-weight:600}
+  input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+  input:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  .tabs{display:flex;gap:8px;margin:18px 0}
+  .tabs button{padding:10px 16px;border:none;border-radius:10px;background:#1e293b;color:#cbd5e1;font-weight:600;cursor:pointer}
+  .tabs button.on{background:var(--brand);color:#fff}
+  .view{display:none} .view.active{display:block}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
+  th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--muted);font-size:13px;background:#f8fafc}
+  .status{font-size:12px;padding:3px 9px;border-radius:999px;font-weight:600}
+  .status.ended{background:#f3f4f6;color:#6b7280} .status.live{background:#ecfdf5;color:#047857}
+  .status.soon{background:#fffbeb;color:#b45309} .status.upcoming{background:#eff6ff;color:#1d4ed8}
+  .kv{font-size:13px;color:var(--muted)} .muted{color:var(--muted);font-size:13px}
+  .pill{font-size:12px;padding:4px 10px;border-radius:999px;background:#eef2ff;color:var(--brand-d);font-weight:600}
+  .center{max-width:380px;margin:12vh auto}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .chk{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="logo">管</div><h1>直播授课 · 大后台</h1><div class="spacer"></div>
+  <span id="admPill" class="pill" style="display:none"></span>
+  <button class="btn ghost sm" id="admLogout" style="display:none" onclick="admLogout()">退出</button></div>
+
+<!-- 管理员登录 -->
+<section class="view active" id="view-adm-login">
+  <div class="card center">
+    <h2>管理员登录</h2>
+    <p class="muted">演示账号：admin / admin</p>
+    <label>用户名</label><input id="admUser" value="admin" />
+    <label>密码</label><input id="admPwd" type="password" value="admin" />
+    <div style="margin-top:16px"><button class="btn" onclick="admLogin()">登录</button></div>
+  </div>
+</section>
+
+<!-- 后台主体 -->
+<section class="view" id="view-adm-main">
+  <div class="wrap">
+    <div class="tabs">
+      <button class="on" data-t="tutors" onclick="switchTab(this,'tutors')">助教管理</button>
+      <button data-t="students" onclick="switchTab(this,'students')">学生管理</button>
+      <button data-t="assign" onclick="switchTab(this,'assign')">分配管理</button>
+      <button data-t="records" onclick="switchTab(this,'records')">课程记录</button>
+    </div>
+    <div id="tab-tutors" class="view active"></div>
+    <div id="tab-students" class="view"></div>
+    <div id="tab-assign" class="view"></div>
+    <div id="tab-records" class="view"></div>
+  </div>
+</section>
+
+<script>
+const LS={courses:'lv_courses',students:'lv_students',tutors:'lv_tutors',assign:'lv_assign'};
+const get=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d;}catch(e){return d;}};
+const set=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const $=s=>document.querySelector(s);
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function pad(n){return n<10?'0'+n:n;}
+function hhmm(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
+function yesterdayStr(){const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}
+function tomorrowStr(){const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);}
+function seedIfEmpty(){if(get(LS.courses,null))return;const t=todayStr(),y=yesterdayStr(),tm=tomorrowStr();const now=new Date();const courses=[
+ {id:'R1001',title:'高一数学一对一',teacherPhone:'13800138000',studentPhone:'13900139000',studentName:'李同学',date:t,start:hhmm(new Date(now-3600e3)),end:hhmm(new Date(now-600e3))},
+ {id:'R1002',title:'英语口语一对一',teacherPhone:'13800138000',studentPhone:'13900139000',studentName:'李同学',date:t,start:hhmm(now),end:hhmm(new Date(now+3600e3))},
+ {id:'R1003',title:'物理答疑一对一',teacherPhone:'13800138000',studentPhone:'13900139000',studentName:'李同学',date:t,start:hhmm(new Date(now+2*3600e3)),end:hhmm(new Date(now+3*3600e3))},
+ {id:'R0990',title:'昨日数学（已结课）',teacherPhone:'13800138000',studentPhone:'13900139000',studentName:'李同学',date:y,start:'09:00',end:'10:30'},
+ {id:'R1010',title:'明日化学（未开课）',teacherPhone:'13800138000',studentPhone:'13900139000',studentName:'李同学',date:tm,start:'15:00',end:'16:30'}];
+ set(LS.courses,courses);set(LS.students,[{name:'李同学',phone:'13900139000'},{name:'王同学',phone:'13900139001'}]);
+ set(LS.tutors,[{name:'张三',phone:'13700137000'},{name:'助教小李',phone:'13700137001'}]);
+ set(LS.assign,{'13700137000':['13900139000'],'13700137001':['13900139001']});}
+function showView(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$('#'+id).classList.add('active');}
+function toast(m){let t=$('#toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#111827;color:#fff;padding:12px 18px;border-radius:12px;z-index:200';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2000);}
+
+function admLogin(){if($('#admUser').value==='admin'&&$('#admPwd').value==='admin'){showView('view-adm-main');seedIfEmpty();$('#admPill').style.display='inline-block';$('#admPill').textContent='管理员';$('#admLogout').style.display='inline-block';switchTab(document.querySelector('.tabs button'),'tutors');}else toast('账号或密码错误');}
+function admLogout(){showView('view-adm-login');$('#admPill').style.display='none';$('#admLogout').style.display='none';}
+
+function switchTab(btn,t){
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
+  ['tutors','students','assign','records'].forEach(x=>{const el=$('#tab-'+x);el.classList.toggle('active',x===t);});
+  if(t==='tutors')renderTutors(); if(t==='students')renderStudents();
+  if(t==='assign')renderAssign(); if(t==='records')renderRecords();
+}
+
+function renderTutors(){
+  const ts=get(LS.tutors,[]);
+  let html=`<div class="grid2"><div class="card"><h2>添加助教</h2>
+    <label>助教姓名</label><input id="tName" placeholder="如：张三"/>
+    <label>助教手机号</label><input id="tPhone" placeholder="11 位手机号"/>
+    <div style="margin-top:12px"><button class="btn" onclick="addTutor()">添加助教</button></div></div>
+    <div class="card"><h2>助教列表（${ts.length}）</h2>
+    <table><tr><th>姓名</th><th>手机号</th><th>负责学生数</th><th>操作</th></tr>`;
+  const as=get(LS.assign,{});
+  ts.forEach(t=>{html+=`<tr><td>${t.name}</td><td>${t.phone}</td><td>${(as[t.phone]||[]).length}</td><td><button class="btn red sm" onclick="delTutor('${t.phone}')">删除</button></td></tr>`;});
+  html+='</table></div></div>';
+  $('#tab-tutors').innerHTML=html;
+}
+function addTutor(){const n=$('#tName').value.trim(),p=$('#tPhone').value.trim();
+  if(!n||!/^\d{11}$/.test(p)){toast('请填写姓名与合法手机号');return;}
+  const ts=get(LS.tutors,[]);if(ts.some(t=>t.phone===p)){toast('该手机号已存在');return;}
+  ts.push({name:n,phone:p});set(LS.tutors,ts);const as=get(LS.assign,{});if(!as[p])as[p]=[];set(LS.assign,as);toast('已添加助教');renderTutors();}
+function delTutor(p){let ts=get(LS.tutors,[]);ts=ts.filter(t=>t.phone!==p);set(LS.tutors,ts);const as=get(LS.assign,{});delete as[p];set(LS.assign,as);toast('已删除');renderTutors();}
+
+function renderStudents(){
+  const ss=get(LS.students,[]);
+  let html=`<div class="grid2"><div class="card"><h2>添加学生</h2>
+    <label>学生姓名</label><input id="sName" placeholder="如：李同学"/>
+    <label>学生手机号</label><input id="sPhone" placeholder="11 位手机号"/>
+    <div style="margin-top:12px"><button class="btn" onclick="addStudent()">添加学生</button></div></div>
+    <div class="card"><h2>学生列表（${ss.length}）</h2>
+    <table><tr><th>姓名</th><th>手机号</th><th>操作</th></tr>`;
+  ss.forEach(s=>{html+=`<tr><td>${s.name}</td><td>${s.phone}</td><td><button class="btn red sm" onclick="delStudent('${s.phone}')">删除</button></td></tr>`;});
+  html+='</table></div></div>';
+  $('#tab-students').innerHTML=html;
+}
+function addStudent(){const n=$('#sName').value.trim(),p=$('#sPhone').value.trim();
+  if(!n||!/^\d{11}$/.test(p)){toast('请填写姓名与合法手机号');return;}
+  const ss=get(LS.students,[]);if(ss.some(s=>s.phone===p)){toast('该手机号已存在');return;}
+  ss.push({name:n,phone:p});set(LS.students,ss);toast('已添加学生');renderStudents();}
+function delStudent(p){let ss=get(LS.students,[]);ss=ss.filter(s=>s.phone!==p);set(LS.students,ss);toast('已删除');renderStudents();}
+
+function renderAssign(){
+  const ts=get(LS.tutors,[]),ss=get(LS.students,[]),as=get(LS.assign,{});
+  let html=`<div class="card"><h2>为助教分配负责学生</h2>
+    <label>选择助教</label><select id="aTutor" onchange="renderAssign()">`;
+  ts.forEach(t=>{html+=`<option value="${t.phone}">${t.name}（${t.phone}）</option>`;});
+  html+=`</select><div id="aStuList" style="margin-top:12px"></div>
+    <div style="margin-top:12px"><button class="btn" onclick="saveAssign()">保存分配</button></div></div>`;
+  $('#tab-assign').innerHTML=html;
+  const sel=$('#aTutor');if(!sel)return;const cur=sel.value;const chosen=as[cur]||[];
+  const box=$('#aStuList');
+  if(!ss.length){box.innerHTML='<p class="muted">暂无学生，请先在学生管理添加</p>';return;}
+  box.innerHTML=ss.map(s=>`<label class="chk"><input type="checkbox" value="${s.phone}" ${chosen.includes(s.phone)?'checked':''}/> ${s.name}（${s.phone}）</label>`).join('');
+}
+function saveAssign(){const cur=$('#aTutor').value;const checked=[...document.querySelectorAll('#aStuList input:checked')].map(i=>i.value);
+  const as=get(LS.assign,{});as[cur]=checked;set(LS.assign,as);toast('已保存分配（'+checked.length+' 名学生）');}
+
+function statusOf(c){const s=new Date(c.date+'T'+c.start),e=new Date(c.date+'T'+c.end),now=new Date();
+  if(now>e)return'ended';if(now>=s)return'live';if(now>=new Date(s-3600e3))return'soon';return'upcoming';}
+const ST={ended:['已结课','ended'],live:['进行中','live'],soon:['未开课·可提前进入','soon'],upcoming:['未开课','upcoming']};
+function renderRecords(){
+  const as=get(LS.assign,{});const ts=get(LS.tutors,[]);const ss=get(LS.students,[]);const courses=get(LS.courses,[]);
+  let html=`<div class="grid2"><div class="card"><h2>课程记录查询</h2>
+    <label>选择助教（查看其负责学生的全部课程）</label><select id="rTutor" onchange="renderRecords()">
+    <option value="__all__">全部助教（总览）</option>`;
+  ts.forEach(t=>{html+=`<option value="${t.phone}">${t.name}（${t.phone}）</option>`;});
+  html+=`</select><div class="kv" style="margin-top:8px">说明：已结课按「已结课」显示；未到时间按「未开课」显示；助教可在 App 端隐身进入进行中的课程。</div></div>`;
+  const rT=$('#rTutor');const key=rT?rT.value:'__all__';
+  let pool=courses;
+  if(key!=='__all__'){const stu=as[key]||[];pool=courses.filter(c=>stu.includes(c.studentPhone));}
+  const byDate={};pool.forEach(c=>{(byDate[c.date]=byDate[c.date]||[]).push(c);});
+  html+='<div class="card" style="margin-top:16px"><h2>课程记录</h2>';
+  if(!pool.length)html+='<p class="muted">暂无课程记录</p>';
+  Object.keys(byDate).sort().forEach(d=>{html+=`<h3 style="margin:14px 0 6px">${d}</h3><table><tr><th>课程</th><th>学生</th><th>时间</th><th>房间</th><th>状态</th></tr>`;
+    byDate[d].forEach(c=>{const[label,cls]=ST[statusOf(c)];const sn=(ss.find(s=>s.phone===c.studentPhone)||{}).name||c.studentName||c.studentPhone;
+      html+=`<tr><td>${c.title}</td><td>${sn}</td><td>${c.start}-${c.end}</td><td>${c.id}</td><td><span class="status ${cls}">${label}</span></td></tr>`;});
+    html+='</table>';});
+  html+='</div></div>';
+  $('#tab-records').innerHTML=html;
+}
+</script>
+</body>
+</html>
