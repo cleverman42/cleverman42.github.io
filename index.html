@@ -96,7 +96,7 @@
   <div class="topbar">
     <div class="logo">课</div><h1>一对一直播授课 · 原型 v2</h1>
     <div class="spacer"></div>
-    <button class="btn ghost sm" id="installBtn" style="display:none" onclick="doInstall()">安装到设备</button>
+    <button class="btn ghost sm" id="installBtn" onclick="handleInstall()">安装到主屏幕</button>
     <span id="rolePill" class="pill" style="display:none"></span>
     <button class="btn ghost sm" id="logoutBtn" style="display:none" onclick="logout()">退出</button>
   </div>
@@ -131,6 +131,12 @@
           <span class="link" onclick="toggleTutorLogin()">▸ 助教专用入口（姓名+手机号登录）</span><br/>
           <span class="link" onclick="window.open('admin.html','_blank')">▸ 进入大后台网页（管理员）</span>
         </p>
+        <div class="install-card" style="border:1px solid #2563eb;background:#eff6ff;border-radius:12px;padding:14px;margin-top:14px">
+          <h3 style="margin:0 0 6px">📲 装到手机，当 App 用</h3>
+          <p class="muted" style="margin:0 0 10px">可像原生 App 装到桌面，离线也能打开。</p>
+          <button class="btn" id="installCta" onclick="handleInstall()">安装到主屏幕</button>
+          <p class="muted" id="installHint" style="margin:10px 0 0"></p>
+        </div>
       </div>
       <div class="card">
         <h2>本版新增</h2>
@@ -589,9 +595,22 @@ processJoinHash();
 
 /* ---------- PWA：安装提示 + 离线缓存 ---------- */
 let deferredPrompt=null;
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').style.display='inline-block';});
-window.addEventListener('appinstalled',()=>{$('#installBtn').style.display='none';toast('已安装到设备 ✅');});
-function doInstall(){if(deferredPrompt){deferredPrompt.prompt();deferredPrompt.userChoice.then(()=>{deferredPrompt=null;$('#installBtn').style.display='none';});}}
+function isIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
+function updateInstallHint(){
+  const cta=document.getElementById('installCta');
+  const hint=document.getElementById('installHint');
+  if(!cta||!hint)return;
+  if(deferredPrompt){cta.textContent='安装到主屏幕';hint.innerHTML='点击下方按钮即可一步安装 ✅';}
+  else if(isIOS()){cta.textContent='查看 iOS 安装步骤';hint.innerHTML='点 Safari 底部「<b>分享</b>」图标 → 选「<b>添加到主屏幕</b>」→ 名称默认 → 点右上角「添加」。';}
+  else{cta.textContent='查看安卓安装步骤';hint.innerHTML='点浏览器右上「<b>⋮</b>」菜单 → 选「<b>安装应用</b>」（或「添加到主屏幕」）。';}
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;updateInstallHint();});
+window.addEventListener('appinstalled',()=>{const c=document.getElementById('installCta');if(c)c.style.display='none';toast('已安装到设备 ✅');});
+function handleInstall(){
+  if(deferredPrompt){deferredPrompt.prompt();deferredPrompt.userChoice.then(()=>{deferredPrompt=null;const c=document.getElementById('installCta');if(c)c.style.display='none';updateInstallHint();});}
+  else{updateInstallHint();toast('请按上方图文手动安装');}
+}
+updateInstallHint();
 if('serviceWorker' in navigator){window.addEventListener('load',()=>{
   navigator.serviceWorker.register('sw.js').then(reg=>{
     reg.addEventListener('updatefound',()=>{const nw=reg.installing;if(!nw)return;
